@@ -21,8 +21,8 @@ end
 
 Sval = DataFrame(Metal = ["Mn", "Fe", "Co", "Ni"],
           S = [2.5, 2, 1.5, 1])
-a = fixmis(BS[:, :Ex])
-b = fixmis(BS[:, :Dd])
+a = BS[:, :Ex]
+b = BS[:, :Dd]
 
 Sval = @> begin
   Sval
@@ -34,18 +34,6 @@ Sval = @> begin
              kB = [1.38, 1.38, 1.38, 1.38],
              JexKnown = a)
 end
-
-pm_Mn = DataFrame(Dd = range(Sval[1, :Min], Sval[1, :Max], length = 200),
-                  JexPred = rose_model(range(Sval[1, :Min], Sval[1, :Max], length = 200), rose_params))
-
-pm_Fe = DataFrame(Dd = range(Sval[2, :Min], Sval[2, :Max], length = 200),
-                  JexPred = rose_model(range(Sval[2, :Min], Sval[2, :Max], length = 200), rose_params))
-
-pm_Co = DataFrame(Dd = range(Sval[3, :Min], Sval[3, :Max], length = 200),
-                  JexPred = rose_model(range(Sval[3, :Min], Sval[3, :Max], length = 200), rose_params))
-
-pm_Ni = DataFrame(Dd = range(Sval[4, :Min], Sval[4, :Max], length = 200),
-                          JexPred = rose_model(range(Sval[4, :Min], Sval[4, :Max], length = 200), rose_params))
 
 ##############################
 # Modeling Functions
@@ -89,8 +77,8 @@ end
 # Optimizations
 ##############################
 
-val = optimize((d -> model_fit(d, rose_model, Dig)), zeros(5),  BFGS())
-rose_params = Optim.minimizer(val)
+rose = optimize((d -> model_fit(d, rose_model, Dig)), zeros(5),  BFGS())
+rose_params = Optim.minimizer(rose)
 poly2val = optimize((d -> model_fit(d, poly, Dig)), zeros(3), BFGS())
 poly2_params =  Optim.minimizer(poly2val)
 poly3val = optimize((d -> model_fit(d, poly, Dig)), zeros(4), BFGS())
@@ -99,9 +87,15 @@ poly4val = optimize((d -> model_fit(d, poly, Dig)), zeros(5), BFGS())
 poly4_params = Optim.minimizer(poly4val)
 nprval = npr(fixmis(Dig[:, :Dd]), fixmis(Dig[:, :Ex]), xeval = fixmis(Dig[:, :Dd]))
 
+roseFeCo = optimize((d -> model_fit(d, rose_model, BS[2:3, :])), zeros(5), BFGS())
+roseFeCo_params = Optim.minimizer(roseFeCo)
+roseFerro = optimize((d -> model_fit(d, rose_model, BS[2:4, :])), zeros(5), BFGS())
+roseFerro_params = Optim.minimizer(roseFerro)
+roseAll = optimize((d -> model_fit(d, rose_model, BS)), zeros(5), BFGS())
+roseAll_params = Optim.minimizer(roseAll)
 
-val4 = optimize((d -> rose_model_shift_mse(d, BS)), zeros(2),  BFGS())
-rose4_shift = Optim.minimizer(val4)
+rose4 = optimize((d -> rose_model_shift_mse(d, BS)), zeros(2),  BFGS())
+rose4_shift = Optim.minimizer(rose4)
 rose4_layer = layer(x = Dig[:, :Dd], y = rose_model_shift(rose4_shift, Dig[:,:Dd], rose_params),
                     Geom.line, Theme(default_color = "red"))
 rose4_mse = rose_model_shift_mse(rose4_shift, BS)
@@ -118,12 +112,37 @@ roseFeCo_layer = layer(x = Dig[:, :Dd], y = rose_model_shift(roseFeCo_shift, Dig
                     Geom.line, Theme(default_color = "orange"))
 roseFeCo_mse = rose_model_shift_mse(roseFeCo_shift, BS)
 
+
+pm_Mn = DataFrame(Dd = range(Sval[1, :Min], Sval[1, :Max], length = 200),
+                  JexPred = rose_model(range(Sval[1, :Min], Sval[1, :Max], length = 200), rose_params))
+
+pm_Fe = DataFrame(Dd = range(Sval[2, :Min], Sval[2, :Max], length = 200),
+                  JexPred = rose_model(range(Sval[2, :Min], Sval[2, :Max], length = 200), rose_params))
+
+pm_Co = DataFrame(Dd = range(Sval[3, :Min], Sval[3, :Max], length = 200),
+                  JexPred = rose_model(range(Sval[3, :Min], Sval[3, :Max], length = 200), rose_params))
+
+pm_Ni = DataFrame(Dd = range(Sval[4, :Min], Sval[4, :Max], length = 200),
+                          JexPred = rose_model(range(Sval[4, :Min], Sval[4, :Max], length = 200), rose_params))
+
 ##############################
 # Plotting Layers
 ##############################
 rose_layer = layer(x = Dig[:,:Dd], y = rose_model(Dig[:,:Dd], rose_params),
                        Geom.line,
                        Theme(default_color = "orange"))
+
+roseFeCo_layer = layer(x = Dig[:, :Dd], y = rose_model(Dig[:, :Dd], roseFeCo_params),
+                       Geom.line,
+                       Theme(default_color = "teal"))
+
+roseFerro_layer = layer(x = Dig[:, :Dd], y = rose_model(Dig[:, :Dd], roseFerro_params),
+                      Geom.line,
+                      Theme(default_color = "red"))
+
+roseAll_layer = layer(x = Dig[:, :Dd], y = rose_model(Dig[:, :Dd], roseAll_params),
+                       Geom.line,
+                       Theme(default_color = "blue"))
 
 poly2_layer = layer(x = Dig[:, :Dd], y = poly(Dig[:,:Dd], poly2_params),
                     Geom.line,
@@ -206,6 +225,22 @@ varpresplot = plot(rose_layer,
     Guide.xlabel("D/d"),
     Guide.ylabel("Exchange"))
 
+rosepointplot = plot(rose_layer,
+                      roseAll_layer,
+                      roseFerro_layer,
+                      roseFeCo_layer,
+                      layer(xintercept = [0], Geom.vline),
+                      layer(yintercept = [0], Geom.hline),
+                      Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
+                      Guide.manual_color_key("Model",
+                                             ["Digitized Data", "Fe, Co", "Fe, Co, Ni", "All"],
+                                             ["orange", "teal", "red", "blue"]),
+                      Theme(default_color = "black"),
+                      Guide.title("Rose Fits to 2,3,4 Data Points"),
+                      Guide.xlabel("D/d"),
+                      Guide.ylabel("Exchange"))
+
+
 ##############################
 # Saving Data
 ##############################
@@ -221,6 +256,7 @@ set_default_plot_size(6inch, 4inch)
 polyplot |> SVG("poly.svg")
 roseplot |> SVG("rose.svg")
 fitplot |> SVG("rosefits.svg")
+rosepointplot |> SVG("pointfits.svg")
 CSV.write("shiftmse.csv", rose_summary)
 CSV.write("roseparams.csv", DataFrame(rose_params = rose_params))
 CSV.write("chen.csv", Chen)

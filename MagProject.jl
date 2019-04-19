@@ -207,7 +207,7 @@ fitplot = plot(BS_layer,
                            ["red", "blue", "orange"]),
     Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
     Theme(default_color = "black"),
-    Guide.title("Rose Model for 2,3,4 Data points"),
+    Guide.title("Rose Shift Model for 2,3,4 Data points"),
     Guide.xlabel("D/d"),
     Guide.ylabel("Exchange Integral"))
 

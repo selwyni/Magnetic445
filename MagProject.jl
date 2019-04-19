@@ -19,6 +19,34 @@ Chen = @> begin
   @transform(Dd = :D ./ :d)
 end
 
+Sval = DataFrame(Metal = ["Mn", "Fe", "Co", "Ni"],
+          S = [2.5, 2, 1.5, 1])
+a = fixmis(BS[:, :Ex])
+b = fixmis(BS[:, :Dd])
+
+Sval = @> begin
+  Sval
+  @transform(SS1 = :S .* (:S .+ 1),
+             Curie = [missing, 1043, 1400, 627],
+             Dd = b,
+             Min = b .- 0.05,
+             Max = b ,
+             kB = [1.38, 1.38, 1.38, 1.38],
+             JexKnown = a)
+end
+
+pm_Mn = DataFrame(Dd = range(Sval[1, :Min], Sval[1, :Max], length = 200),
+                  JexPred = rose_model(range(Sval[1, :Min], Sval[1, :Max], length = 200), rose_params))
+
+pm_Fe = DataFrame(Dd = range(Sval[2, :Min], Sval[2, :Max], length = 200),
+                  JexPred = rose_model(range(Sval[2, :Min], Sval[2, :Max], length = 200), rose_params))
+
+pm_Co = DataFrame(Dd = range(Sval[3, :Min], Sval[3, :Max], length = 200),
+                  JexPred = rose_model(range(Sval[3, :Min], Sval[3, :Max], length = 200), rose_params))
+
+pm_Ni = DataFrame(Dd = range(Sval[4, :Min], Sval[4, :Max], length = 200),
+                          JexPred = rose_model(range(Sval[4, :Min], Sval[4, :Max], length = 200), rose_params))
+
 ##############################
 # Modeling Functions
 ##############################
@@ -130,7 +158,7 @@ polyplot = plot(poly3_layer, poly4_layer, poly2_layer, BS_layer,
      Guide.manual_color_key("Model",
                             ["Poly 2", "Poly 3", "Poly 4"],
                             ["teal", "red", "blue"]),
-     Coord.cartesian(xmin = 0, xmax = 3, ymin = -1, ymax = 1),
+     Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
      Theme(default_color = "black"),
      Guide.title("Polynomial Models for Digitized Data"),
      Guide.xlabel("D/d"),
@@ -142,7 +170,7 @@ roseplot = plot(rose_layer, NP_layer, BS_layer,
     Guide.manual_color_key("Model",
                            ["Rose", "Nonparametric"],
                            ["orange", "green"]),
-    Coord.cartesian(xmin = 0, xmax = 3, ymin = -1, ymax = 1),
+    Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
     Theme(default_color = "black"),
     Guide.title("Rose and Nonparametric Model for Digitized Data"),
     Guide.xlabel("D/d"),
@@ -158,13 +186,25 @@ fitplot = plot(BS_layer,
      Guide.manual_color_key("Model",
                            ["All", "Ferromagnetic", "Fe, Co"],
                            ["red", "blue", "orange"]),
-    Coord.cartesian(xmin = 0, xmax = 3, ymin = -1, ymax = 1),
+    Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
     Theme(default_color = "black"),
     Guide.title("Rose Model for 2,3,4 Data points"),
     Guide.xlabel("D/d"),
     Guide.ylabel("Exchange Integral"))
 
-
+varpresplot = plot(rose_layer,
+    layer(x = pm_Mn[:, :Dd], y = pm_Mn[:, :JexPred], Geom.line, Theme(default_color = "red"), order = 2),
+    layer(x = pm_Fe[:, :Dd], y = pm_Fe[:, :JexPred], Geom.line, Theme(default_color = "blue"), order = 2),
+    layer(x = pm_Co[:, :Dd], y = pm_Co[:, :JexPred], Geom.line, Theme(default_color = "green"), order = 2),
+    layer(x = pm_Ni[:, :Dd], y = pm_Ni[:, :JexPred], Geom.line, Theme(default_color = "yellow"), order = 2),
+    layer(x = BS[:, :Dd], y = BS[:, :Ex], label = BS[:, :Metal], Geom.point, Geom.label),
+    layer(xintercept = [0], Geom.vline),
+    layer(yintercept = [0], Geom.hline),
+    Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
+    Theme(default_color = "black"),
+    Guide.title("Varying Pressures - D/d +- 0.1"),
+    Guide.xlabel("D/d"),
+    Guide.ylabel("Exchange"))
 
 ##############################
 # Saving Data
@@ -177,55 +217,17 @@ push!(rose_summary, (roseFeCo_shift[1], roseFeCo_shift[2], roseFeCo_mse))
 # println(rose_summary)
 # print(rose_params)
 
-# set_default_plot_size(6inch, 4inch)
-# polyplot |> SVG("poly.svg")
-# roseplot |> SVG("rose.svg")
-# fitplot |> SVG("rosefits.svg")
-# CSV.write("shiftmse.csv", rose_summary)
-# CSV.write("roseparams.csv", DataFrame(rose_params = rose_params))
-# CSV.write("chen.csv", Chen)
+set_default_plot_size(6inch, 4inch)
+polyplot |> SVG("poly.svg")
+roseplot |> SVG("rose.svg")
+fitplot |> SVG("rosefits.svg")
+CSV.write("shiftmse.csv", rose_summary)
+CSV.write("roseparams.csv", DataFrame(rose_params = rose_params))
+CSV.write("chen.csv", Chen)
 
 
-Sval = DataFrame(Metal = ["Mn", "Fe", "Co", "Ni"],
-          S = [2.5, 2, 1.5, 1])
-a = fixmis(BS[:, :Ex])
-b = fixmis(BS[:, :Dd])
 
-Sval = @> begin
-  Sval
-  @transform(SS1 = :S .* (:S .+ 1),
-             Curie = [missing, 1043, 1400, 627],
-             Dd = b,
-             Min = b .- 0.2,
-             Max = b ,
-             kB = [1.38, 1.38, 1.38, 1.38],
-             JexKnown = a)
-end
 
-pm_Mn = DataFrame(Dd = range(Sval[1, :Min], Sval[1, :Max], length = 200),
-                  JexPred = rose_model(range(Sval[1, :Min], Sval[1, :Max], length = 200), rose_params))
-
-pm_Fe = DataFrame(Dd = range(Sval[2, :Min], Sval[2, :Max], length = 200),
-                  JexPred = rose_model(range(Sval[2, :Min], Sval[2, :Max], length = 200), rose_params))
-
-pm_Co = DataFrame(Dd = range(Sval[3, :Min], Sval[3, :Max], length = 200),
-                  JexPred = rose_model(range(Sval[3, :Min], Sval[3, :Max], length = 200), rose_params))
-
-pm_Ni = DataFrame(Dd = range(Sval[4, :Min], Sval[4, :Max], length = 200),
-                          JexPred = rose_model(range(Sval[4, :Min], Sval[4, :Max], length = 200), rose_params))
-varpresplot = plot(rose_layer,
-    layer(x = pm_Mn[:, :Dd], y = pm_Mn[:, :JexPred], Geom.line, Theme(default_color = "red"), order = 2),
-    layer(x = pm_Fe[:, :Dd], y = pm_Fe[:, :JexPred], Geom.line, Theme(default_color = "blue"), order = 2),
-    layer(x = pm_Co[:, :Dd], y = pm_Co[:, :JexPred], Geom.line, Theme(default_color = "green"), order = 2),
-    layer(x = pm_Ni[:, :Dd], y = pm_Ni[:, :JexPred], Geom.line, Theme(default_color = "yellow"), order = 2),
-    layer(x = BS[:, :Dd], y = BS[:, :Ex], label = BS[:, :Metal], Geom.point, Geom.label),
-    layer(xintercept = [0], Geom.vline),
-    layer(yintercept = [0], Geom.hline),
-    Coord.cartesian(xmin = 0, xmax = 3, ymin = -1, ymax = 1),
-    Theme(default_color = "black"),
-    Guide.title("Varying Pressures - D/d +- 0.1"),
-    Guide.xlabel("D/d"),
-    Guide.ylabel("Exchange"))
 
 bulkmod = DataFrame(Metal = ["Mn", "Fe", "Co", "Ni"],
                     BM = [120, 170, 180, 180]) # Bulk Modulus in GP

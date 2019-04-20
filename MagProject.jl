@@ -111,7 +111,7 @@ function ExVals(bulkmodRow, xtal, rose_params)
   df = @transform(df, D = ifelse(xtal == "BCC", :a0 * sqrt(3) / 2, :a0 * sqrt(2) / 2))
   df2 = DataFrame(Dd = df[:, :D] ./ bulkmod[bulkmodRow, :d])
   df2 = @transform(df2, Ex = rose_model(:Dd, rose_params))
-  df2
+  df2[range(1, nrow())]
 end
 
 ##############################
@@ -165,6 +165,7 @@ pm_Co = DataFrame(Dd = range(Sval[3, :Min], Sval[3, :Max], length = 200),
 
 pm_Ni = DataFrame(Dd = range(Sval[4, :Min], Sval[4, :Max], length = 200),
                           JexPred = rose_model(range(Sval[4, :Min], Sval[4, :Max], length = 200), rose_params))
+
 
 Mn_pressure = ExVals(1, "BCC", rose_params)
 Fe_pressure = ExVals(2, "BCC", rose_params)

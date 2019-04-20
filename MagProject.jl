@@ -35,6 +35,23 @@ Sval = @> begin
              JexKnown = a)
 end
 
+bulkmod = DataFrame(Metal = ["Mn", "Fe", "Co", "Ni"],
+                    BM = [1.2e11, 1.7e11, 1.8e11, 1.8e11],
+                    a0 = [2.587, 2.867, 3.54, 3.499],
+                    D1 = BS[:, :Dd] .* Chen[1:4, :d],
+                    xtal = ["BCC", "BCC", "FCC", "FCC"],
+                    d = Chen[1:4, :d])
+
+
+bulkmod = @transform(bulkmod, a0 = :D1 * 2/ sqrt(3))
+@byrow! bulkmod begin
+  if :xtal == "BCC"
+    :a0 = :D1 * 2 / sqrt(3)
+  else
+    :a0 = :D1 * 2 / sqrt(2)
+  end
+end
+
 ##############################
 # Modeling Functions
 ##############################
@@ -71,6 +88,30 @@ end
 
 function rose_model_shift(shift, x, params)
   rose_model(fixmis(x) .+ shift[1], params) .+ shift[2]
+end
+
+function volRange(a0, BM, dP, endP)
+  initP = 1e5
+  niter::Int = (endP - initP) / dP
+  df = DataFrame(iter = Int32[], P = Float64[], V = Float64[], a0 = Float64[])
+  push!(df, [0, initP, a0^3, a0])
+  for iter in 1:niter
+    prevV = df[iter, :V]
+    prevP = df[iter, :P]
+    newV = prevV - (prevV * dP / BM)
+    newP = prevP + dP
+    newa0 = cbrt(newV)
+    push!(df, [iter, newP, newV, newa0])
+  end
+  df
+end
+
+function ExVals(bulkmodRow, xtal, rose_params)
+  df = volRange(bulkmod[bulkmodRow, :a0], bulkmod[bulkmodRow, :BM], 1e5, 1e10)
+  df = @transform(df, D = ifelse(xtal == "BCC", :a0 * sqrt(3) / 2, :a0 * sqrt(2) / 2))
+  df2 = DataFrame(Dd = df[:, :D] ./ bulkmod[bulkmodRow, :d])
+  df2 = @transform(df2, Ex = rose_model(:Dd, rose_params))
+  df2
 end
 
 ##############################
@@ -125,6 +166,11 @@ pm_Co = DataFrame(Dd = range(Sval[3, :Min], Sval[3, :Max], length = 200),
 pm_Ni = DataFrame(Dd = range(Sval[4, :Min], Sval[4, :Max], length = 200),
                           JexPred = rose_model(range(Sval[4, :Min], Sval[4, :Max], length = 200), rose_params))
 
+Mn_pressure = ExVals(1, "BCC", rose_params)
+Fe_pressure = ExVals(2, "BCC", rose_params)
+Co_pressure = ExVals(3, "FCC", rose_params)
+Ni_pressure = ExVals(4, "FCC", rose_params)
+
 ##############################
 # Plotting Layers
 ##############################
@@ -170,6 +216,30 @@ NP_layer = layer(x = Dig[:, :Dd], y = nprval,
 Chen_layer = layer(x = Chen[:, :Dd], y = rose_model(Chen[:, :Dd], rose_params),
                    Geom.point)
 
+Mn_layer = layer(x = Mn_pressure[:, :Dd], y = Mn_pressure[:, :Ex],
+                 Geom.line, order = 2,
+                 Theme(line_width = 2pt,
+                       default_color = "red"))
+
+Fe_layer = layer(x = Fe_pressure[:, :Dd], y = Fe_pressure[:, :Ex],
+                 Geom.line, order = 2,
+                 Theme(line_width = 2pt,
+                       default_color = "green"))
+
+Co_layer = layer(x = Co_pressure[:, :Dd], y = Co_pressure[:, :Ex],
+                 Geom.line, order = 2,
+                 Theme(line_width = 2pt,
+                       default_color = "blue"))
+
+Ni_layer = layer(x = Ni_pressure[:, :Dd], y = Ni_pressure[:, :Ex],
+                 Geom.line, order = 2,
+                 Theme(line_width = 2pt,
+                       default_color = "yellow"))
+
+
+##############################
+# Plotting Functions
+##############################
 
 polyplot = plot(poly3_layer, poly4_layer, poly2_layer, BS_layer,
      layer(xintercept = [0], Geom.vline),
@@ -177,7 +247,7 @@ polyplot = plot(poly3_layer, poly4_layer, poly2_layer, BS_layer,
      Guide.manual_color_key("Model",
                             ["Poly 2", "Poly 3", "Poly 4"],
                             ["teal", "red", "blue"]),
-     Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
+     Coord.cartesian(xmin = 1.2, xmax = 2.5, ymin = -1, ymax = 1),
      Theme(default_color = "black"),
      Guide.title("Polynomial Models for Digitized Data"),
      Guide.xlabel("D/d"),
@@ -189,12 +259,11 @@ roseplot = plot(rose_layer, NP_layer, BS_layer,
     Guide.manual_color_key("Model",
                            ["Rose", "Nonparametric"],
                            ["orange", "green"]),
-    Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
+    Coord.cartesian(xmin = 1.2, xmax = 2.5, ymin = -1, ymax = 1),
     Theme(default_color = "black"),
     Guide.title("Rose and Nonparametric Model for Digitized Data"),
     Guide.xlabel("D/d"),
     Guide.ylabel("Exchange Integral"))
-
 
 fitplot = plot(BS_layer,
      rose4_layer,
@@ -205,7 +274,7 @@ fitplot = plot(BS_layer,
      Guide.manual_color_key("Model",
                            ["All", "Ferromagnetic", "Fe, Co"],
                            ["red", "blue", "orange"]),
-    Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
+    Coord.cartesian(xmin = 1.2, xmax = 2.5, ymin = -1, ymax = 1),
     Theme(default_color = "black"),
     Guide.title("Rose Shift Model for 2,3,4 Data points"),
     Guide.xlabel("D/d"),
@@ -219,7 +288,7 @@ varpresplot = plot(rose_layer,
     layer(x = BS[:, :Dd], y = BS[:, :Ex], label = BS[:, :Metal], Geom.point, Geom.label),
     layer(xintercept = [0], Geom.vline),
     layer(yintercept = [0], Geom.hline),
-    Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
+    Coord.cartesian(xmin = 1.2, xmax = 2.5, ymin = -1, ymax = 1),
     Theme(default_color = "black"),
     Guide.title("Varying Pressures - D/d +- 0.1"),
     Guide.xlabel("D/d"),
@@ -229,16 +298,30 @@ rosepointplot = plot(rose_layer,
                       roseAll_layer,
                       roseFerro_layer,
                       roseFeCo_layer,
+                      BS_layer,
                       layer(xintercept = [0], Geom.vline),
                       layer(yintercept = [0], Geom.hline),
-                      Coord.cartesian(xmin = 1, xmax = 2.5, ymin = -1, ymax = 1),
+                      Coord.cartesian(xmin = 1.2, xmax = 2.5, ymin = -1, ymax = 1),
                       Guide.manual_color_key("Model",
                                              ["Digitized Data", "Fe, Co", "Fe, Co, Ni", "All"],
                                              ["orange", "teal", "red", "blue"]),
                       Theme(default_color = "black"),
-                      Guide.title("Rose Fits to 2,3,4 Data Points"),
+                      Guide.title("Rose Model Fits to 2,3,4 Data Points"),
                       Guide.xlabel("D/d"),
                       Guide.ylabel("Exchange"))
+
+bulkpresplot = plot(rose_layer,
+                    Fe_layer,
+                    Co_layer,
+                    Ni_layer,
+                    BS_layer,
+                    layer(xintercept = [0], Geom.vline),
+                    layer(yintercept = [0], Geom.hline),
+                    Coord.cartesian(xmin = 1.2, xmax = 2.5, ymin = -1, ymax = 1),
+                    Theme(default_color = "black"),
+                    Guide.title("Varying Pressures - 0.1 MPa to 10 GPa"),
+                    Guide.xlabel("D/d"),
+                    Guide.ylabel("Exchange"))
 
 
 ##############################
@@ -252,30 +335,12 @@ push!(rose_summary, (roseFeCo_shift[1], roseFeCo_shift[2], roseFeCo_mse))
 # println(rose_summary)
 # print(rose_params)
 
-set_default_plot_size(6inch, 4inch)
-polyplot |> SVG("poly.svg")
-roseplot |> SVG("rose.svg")
-fitplot |> SVG("rosefits.svg")
-rosepointplot |> SVG("pointfits.svg")
-CSV.write("shiftmse.csv", rose_summary)
-CSV.write("roseparams.csv", DataFrame(rose_params = rose_params))
-CSV.write("chen.csv", Chen)
-
-
-
-
-
-bulkmod = DataFrame(Metal = ["Mn", "Fe", "Co", "Ni"],
-                    BM = [120, 170, 180, 180]) # Bulk Modulus in GP
-
-function volRange(a0, BM, dP, niter)
-  df = DataFrame(iter = Int32[], V = Float64[], a0 = Float64[])
-  push!(df, [0, a0^3, a0])
-  for iter in 1:niter
-    prevV = df[iter, :V]
-    newV = prevV - (prevV * dP / BM)
-    newa0 = cbrt(newV)
-    push!(df, [iter, newV, newa0])
-  end
-  df
-end
+# set_default_plot_size(6inch, 4inch)
+# polyplot |> SVG("poly.svg")
+# roseplot |> SVG("rose.svg")
+# fitplot |> SVG("rosefits.svg")
+# rosepointplot |> SVG("pointfits.svg")
+# bulkpresplot |> SVG("varyingpressures.svg")
+# CSV.write("shiftmse.csv", rose_summary)
+# CSV.write("roseparams.csv", DataFrame(rose_params = rose_params))
+# CSV.write("chen.csv", Chen)

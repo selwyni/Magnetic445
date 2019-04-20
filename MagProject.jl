@@ -109,9 +109,28 @@ end
 function ExVals(bulkmodRow, xtal, rose_params)
   df = volRange(bulkmod[bulkmodRow, :a0], bulkmod[bulkmodRow, :BM], 1e5, 1e10)
   df = @transform(df, D = ifelse(xtal == "BCC", :a0 * sqrt(3) / 2, :a0 * sqrt(2) / 2))
-  df2 = DataFrame(Dd = df[:, :D] ./ bulkmod[bulkmodRow, :d])
+  df2 = DataFrame(P = df[:, :P], Dd = df[:, :D] ./ bulkmod[bulkmodRow, :d])
   df2 = @transform(df2, Ex = rose_model(:Dd, rose_params))
-  df2[range(1, nrow())]
+  df2[map(d -> round(Int, d), range(1, nrow(df2), length = 200)), :]
+end
+
+function TcArbPred!(pressureDS, SS1)
+  Tc = pressureDS[1:20:200, :Ex] .* SS1 .* 2 ./ (3 * 1.38e-23)
+  pressureDS = pressureDS[1:20:200, :]
+  pressureDS = @transform(pressureDS, Tc = Tc)
+  pressureDS
+end
+
+function TcPred(arbDS, Curie)
+  arbDS[:, :Tc] .* (Curie / arbDS[1, :Tc])
+end
+
+function model_P_Tc(p, model, P_data, Tc_data)
+  x = collect(skipmissing(P_data ./ 1e9))
+  y = collect(skipmissing(Tc_data))
+  yhat = model(x, p)
+  mse = mean((yhat - y).^2)
+  return(mse)
 end
 
 ##############################
@@ -171,6 +190,22 @@ Mn_pressure = ExVals(1, "BCC", rose_params)
 Fe_pressure = ExVals(2, "BCC", rose_params)
 Co_pressure = ExVals(3, "FCC", rose_params)
 Ni_pressure = ExVals(4, "FCC", rose_params)
+
+
+Fe_Tc_Arb = TcArbPred!(Fe_pressure, Sval[2, :SS1])
+Co_Tc_Arb = TcArbPred!(Co_pressure, Sval[3, :SS1])
+Ni_Tc_Arb = TcArbPred!(Ni_pressure, Sval[4, :SS1])
+
+Fe_Tc_Pred = TcPred(Fe_Tc_Arb, Sval[2, :Curie])
+Co_Tc_Pred = TcPred(Co_Tc_Arb, Sval[3, :Curie])
+Ni_Tc_Pred = TcPred(Ni_Tc_Arb, Sval[4, :Curie])
+
+Fe_P_algo = optimize((d -> model_P_Tc(d, poly, Fe_Tc_Arb[:, :P], Fe_Tc_Pred)), zeros(2))
+Fe_P_params = Optim.minimizer(Fe_P_algo)
+Co_P_algo = optimize((d -> model_P_Tc(d, poly, Co_Tc_Arb[:, :P], Co_Tc_Pred)), zeros(2))
+Co_P_params = Optim.minimizer(Co_P_algo)
+Ni_P_algo = optimize((d -> model_P_Tc(d, poly, Ni_Tc_Arb[:, :P], Ni_Tc_Pred)), zeros(2))
+Ni_P_params = Optim.minimizer(Ni_P_algo)
 
 ##############################
 # Plotting Layers
@@ -237,6 +272,20 @@ Ni_layer = layer(x = Ni_pressure[:, :Dd], y = Ni_pressure[:, :Ex],
                  Theme(line_width = 2pt,
                        default_color = "yellow"))
 
+Fe_P_layer = layer(x = Fe_Tc_Arb[:, :P] ./ 1e9,
+                   y = poly(Fe_Tc_Arb[:, :P] ./ 1e9, Fe_P_params),
+                   Geom.line, Geom.point,
+                   Theme(default_color = "red"))
+
+Co_P_layer = layer(x = Co_Tc_Arb[:, :P] ./ 1e9,
+                   y = poly(Co_Tc_Arb[:, :P] ./ 1e9, Co_P_params),
+                   Geom.line, Geom.point,
+                   Theme(default_color = "blue"))
+
+Ni_P_layer = layer(x = Ni_Tc_Arb[:, :P] ./ 1e9,
+                   y = poly(Ni_Tc_Arb[:, :P] ./ 1e9, Ni_P_params),
+                   Geom.line, Geom.point,
+                   Theme(default_color = "yellow"))
 
 ##############################
 # Plotting Functions
@@ -325,6 +374,15 @@ bulkpresplot = plot(rose_layer,
                     Guide.ylabel("Exchange"))
 
 
+P_dep_plot = plot(Fe_P_layer, Co_P_layer, Ni_P_layer,
+                  Guide.manual_color_key("Metal",
+                           ["Fe", "Co", "Ni"], ["red", "blue", "yellow"]),
+                  Guide.title("Predicted Pressure Dependence"),
+                  Guide.xlabel("Pressure, GPa"),
+                  Guide.ylabel("Curie Temperature, K"),
+                  Guide.xticks(ticks = [0:2:10...]))
+
+
 ##############################
 # Saving Data
 ##############################
@@ -336,12 +394,20 @@ push!(rose_summary, (roseFeCo_shift[1], roseFeCo_shift[2], roseFeCo_mse))
 # println(rose_summary)
 # print(rose_params)
 
+pressure_summary = DataFrame(hcat(["Intercept", "Slope"],
+                                  Fe_P_params, Co_P_params, Ni_P_params))
+names!(pressure_summary, [:Coefs, :Fe, :Co, :Ni])
+
+println(pressure_summary)
+
+
 # set_default_plot_size(6inch, 4inch)
-# polyplot |> SVG("poly.svg")
-# roseplot |> SVG("rose.svg")
-# fitplot |> SVG("rosefits.svg")
-# rosepointplot |> SVG("pointfits.svg")
-# bulkpresplot |> SVG("varyingpressures.svg")
+polyplot |> SVG("poly.svg")
+roseplot |> SVG("rose.svg")
+fitplot |> SVG("rosefits.svg")
+rosepointplot |> SVG("pointfits.svg")
+bulkpresplot |> SVG("varyingpressures.svg")
+P_dep_plot |> SVG("pressure_dependence.svg")
 # CSV.write("shiftmse.csv", rose_summary)
 # CSV.write("roseparams.csv", DataFrame(rose_params = rose_params))
 # CSV.write("chen.csv", Chen)

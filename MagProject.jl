@@ -5,8 +5,11 @@ using Statistics, KernelEstimator
 # Data Loading
 ###############
 
+# Bethe-Slater Curve, 4 points digitized, Gallagher et al
 BS = CSV.read("BS4.csv", header = [:Dd, :Ex])
+# Bethe Slater Curve, 100+ points digitized, Gallagher et al
 Dig = CSV.read("DigitizedData.csv", header = [:Dd, :Ex])
+# Tabulated D, d values, Chen et al.
 Chen = DataFrame(D = [2.24, 2.482, 2.5, 2.49, 3.66, 2.73, 2.65, 2.69, 2.75, 2.74, 2.68, 2.714, 2.78],
                  d = [1.71, 1.58, 1.38, 1.27, 1.71, 2.94, 2.33, 2.11, 1.93, 3.44, 2.72, 2.47, 2.25],
                  Metal = CategoricalArray(["Mn", "Fe", "Co", "Ni", "Cu2MnAl", "Mo", "Ru" , "Rh", "Pd", "W", "Os", "Ir", "Pt"]))
@@ -19,6 +22,7 @@ Chen = @> begin
   @transform(Dd = :D ./ :d)
 end
 
+# Spin Values
 Sval = DataFrame(Metal = ["Mn", "Fe", "Co", "Ni"],
           S = [2.5, 2, 1.5, 1])
 a = BS[:, :Ex]
@@ -35,6 +39,7 @@ Sval = @> begin
              JexKnown = a)
 end
 
+# Bulk Modulus DF
 bulkmod = DataFrame(Metal = ["Mn", "Fe", "Co", "Ni"],
                     BM = [1.2e11, 1.7e11, 1.8e11, 1.8e11],
                     a0 = [2.587, 2.867, 3.54, 3.499],
@@ -60,10 +65,12 @@ function fixmis(x)
   collect(skipmissing(x))
 end
 
+# Rose et al.
 function rose_model(x, p)
   (p[1] .+ p[2] .* x .+ p[3] .* x.^2 .+ p[4] .* x.^3) .* map(exp, (p[5] .* x))
 end
 
+# Polynomial Model
 function poly(x, coef)
   rsum = zeros(length(x))
   deg = length(coef) - 1
@@ -73,6 +80,7 @@ function poly(x, coef)
   return(rsum)
 end
 
+# Calculates Mean Squared Error
 function model_fit(p, model, data)
   x = collect(skipmissing(data[:, :Dd]))
   y = collect(skipmissing(data[:, :Ex]))
@@ -81,15 +89,19 @@ function model_fit(p, model, data)
   return(mse)
 end
 
+# Rose Model, with x,y shift
+function rose_model_shift(shift, x, params)
+  rose_model(fixmis(x) .+ shift[1], params) .+ shift[2]
+end
+
+# MSE of Rose Model with x, yshift
 function rose_model_shift_mse(shift, data)
   yhat = rose_model_shift(shift, fixmis(data[:, :Dd]), rose_params)
   mean((yhat .- fixmis(data[:, :Ex])).^2)
 end
 
-function rose_model_shift(shift, x, params)
-  rose_model(fixmis(x) .+ shift[1], params) .+ shift[2]
-end
-
+# Extrapolates unit cell volume from bulk modulus
+# Ranges from 1e5 Pa to endP in intervals of dP
 function volRange(a0, BM, dP, endP)
   initP = 1e5
   niter::Int = (endP - initP) / dP
@@ -106,6 +118,7 @@ function volRange(a0, BM, dP, endP)
   df
 end
 
+# Calculates Exchange values
 function ExVals(bulkmodRow, xtal, rose_params)
   df = volRange(bulkmod[bulkmodRow, :a0], bulkmod[bulkmodRow, :BM], 1e5, 1e10)
   df = @transform(df, D = ifelse(xtal == "BCC", :a0 * sqrt(3) / 2, :a0 * sqrt(2) / 2))
@@ -114,6 +127,7 @@ function ExVals(bulkmodRow, xtal, rose_params)
   df2[map(d -> round(Int, d), range(1, nrow(df2), length = 200)), :]
 end
 
+# Predicts Curie Temperature from exchange values
 function TcArbPred!(pressureDS, SS1)
   Tc = pressureDS[1:20:200, :Ex] .* SS1 .* 2 ./ (3 * 1.38e-23)
   pressureDS = pressureDS[1:20:200, :]
@@ -121,10 +135,12 @@ function TcArbPred!(pressureDS, SS1)
   pressureDS
 end
 
+# Scales arbitrary Tc units to the known Curie temperature at 0 K
 function TcPred(arbDS, Curie)
   arbDS[:, :Tc] .* (Curie / arbDS[1, :Tc])
 end
 
+# Model fitting for P vs Tc data
 function model_P_Tc(p, model, P_data, Tc_data)
   x = collect(skipmissing(P_data ./ 1e9))
   y = collect(skipmissing(Tc_data))
@@ -137,6 +153,7 @@ end
 # Optimizations
 ##############################
 
+# Fitting digitized data to polynomial models and Rose model
 rose = optimize((d -> model_fit(d, rose_model, Dig)), zeros(5),  BFGS())
 rose_params = Optim.minimizer(rose)
 poly2val = optimize((d -> model_fit(d, poly, Dig)), zeros(3), BFGS())
@@ -147,6 +164,7 @@ poly4val = optimize((d -> model_fit(d, poly, Dig)), zeros(5), BFGS())
 poly4_params = Optim.minimizer(poly4val)
 nprval = npr(fixmis(Dig[:, :Dd]), fixmis(Dig[:, :Ex]), xeval = fixmis(Dig[:, :Dd]))
 
+# Fitting 2,3,4 point models as in Zhoglin report
 roseFeCo = optimize((d -> model_fit(d, rose_model, BS[2:3, :])), zeros(5), BFGS())
 roseFeCo_params = Optim.minimizer(roseFeCo)
 roseFerro = optimize((d -> model_fit(d, rose_model, BS[2:4, :])), zeros(5), BFGS())
@@ -154,6 +172,7 @@ roseFerro_params = Optim.minimizer(roseFerro)
 roseAll = optimize((d -> model_fit(d, rose_model, BS)), zeros(5), BFGS())
 roseAll_params = Optim.minimizer(roseAll)
 
+# Fitting Rose shift model to 2,3,4 BS points
 rose4 = optimize((d -> rose_model_shift_mse(d, BS)), zeros(2),  BFGS())
 rose4_shift = Optim.minimizer(rose4)
 rose4_layer = layer(x = Dig[:, :Dd], y = rose_model_shift(rose4_shift, Dig[:,:Dd], rose_params),
@@ -190,7 +209,6 @@ Mn_pressure = ExVals(1, "BCC", rose_params)
 Fe_pressure = ExVals(2, "BCC", rose_params)
 Co_pressure = ExVals(3, "FCC", rose_params)
 Ni_pressure = ExVals(4, "FCC", rose_params)
-
 
 Fe_Tc_Arb = TcArbPred!(Fe_pressure, Sval[2, :SS1])
 Co_Tc_Arb = TcArbPred!(Co_pressure, Sval[3, :SS1])

@@ -445,6 +445,10 @@ names!(pressure4_summary, [:Coefs, :Fe, :Co, :Ni])
 println(pressure_summary)
 println(pressure4_summary)
 
+rose_param_summary = DataFrame(hcat(["A", "B", "C", "D", "E"], rose_params, roseAll_params, roseFerro_params, roseFeCo_params))
+names!(rose_param_summary, [:Coefs, :DigitzedData, :All4Fit, :FerroFit, :FeCoFit])
+println(rose_param_summary)
+
 # set_default_plot_size(6inch, 4inch)
 # polyplot |> SVG("poly.svg")
 # roseplot |> SVG("rose.svg")

@@ -450,7 +450,7 @@ push!(rose_summary, (roseferro_shift[1], roseferro_shift[2], roseferro_mse))
 push!(rose_summary, (roseFeCo_shift[1], roseFeCo_shift[2], roseFeCo_mse))
 
 # println(rose_summary)
-# print(rose_params)
+print(rose_params)
 
 pressure_summary = DataFrame(hcat(["Intercept", "Slope"],
                                   Fe_P_params, Co_P_params, Ni_P_params))
@@ -463,9 +463,11 @@ names!(pressure4_summary, [:Coefs, :Fe, :Co, :Ni])
 println(pressure_summary)
 println(pressure4_summary)
 
-rose_param_summary = DataFrame(hcat(["A", "B", "C", "D", "E"], rose_params, roseAll_params, roseFerro_params, roseFeCo_params))
-names!(rose_param_summary, [:Coefs, :DigitzedData, :All4Fit, :FerroFit, :FeCoFit])
-println(rose_param_summary)
+rose_model_fit_summary = DataFrame(hcat(["A", "B", "C", "D", "E"],
+                                        rose_params, roseAll_params, roseFerro_params, roseFeCo_params))
+names!(rose_model_fit_summary, [:Coefs, :RoseModel, :PtAllFit, :PtFerroFit, :PtFeCoFit])
+
+print(rose_model_fit_summary)
 
 # set_default_plot_size(6inch, 4inch)
 # polyplot |> SVG("poly.svg")

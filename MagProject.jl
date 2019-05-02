@@ -1,5 +1,5 @@
 using DataFrames, DataFramesMeta, Lazy, Gadfly, CSV, Optim
-using Statistics, KernelEstimator
+using Statistics, KernelEstimator, StatsPlots
 
 
 ###############
@@ -485,26 +485,27 @@ print(rose_model_fit_summary)
 combine = Chen[1:4, :]
 combine[:, :Ex] = BS[:, :Ex]
 
-using StatsPlots
 
 gridData = DataFrame(D = Float64[], d = Float64[], Dd = Float64[],  Ex = Float64[])
 for i in range(2, 2.6, length = 100), j in range(1, 2, length = 100)
   push!(gridData,  [i, j, i/j, rose_model(i / j, rose_params)])
 end
 
-plt3d = Plot.wireframe(gridData[:, :D], gridData[:, :d], gridData[:, :Ex],
-                     xlim = c(2, 2.6), ylim = c(1, 2),
+@df gridData surface(:D, :d, :Ex, camera = (60, 70),
                      xlabel = "D",
                      ylabel = "d",
                      zlabel = "Ex",
-                     title = "Exchange as function of D, d")
-
-
-@gif for i in range(0, stop = 2π, length = 400)
+                     title = "Exchange as Function of D, d")
+                     
+@gif for i in range(0, stop = 2π, length = 250)
     # induce a slight oscillating camera angle sweep,
     # in degrees (azimuth, altitude)
-    println(i * 100 / 2π)
-    plot!(plt3d, camera=(90*cos(i), 40))
+    println(i * 50 / (2 * pi))
+    @df gridData surface(:D, :d, :Ex, camera = (20 + 70 * cos(i), 40 + 20 * sin(i)),
+                         xlabel = "D",
+                         ylabel = "d",
+                         zlabel = "Ex",
+                         title = "Exchange as Function of D, d")
 end
 
 plot!(plt3d, camera = (60, 70))

@@ -492,7 +492,7 @@ for i in range(2, 2.6, length = 50), j in range(1, 2, length = 50)
   push!(gridData,  [i, j, i/j, rose_model(i / j, rose_params)])
 end
 
-Ex = Surface(gridData[:,:D], gridData[:,:d], (D, d) -> rose_model(D / d, rose_params))
+Ex = Surface((D, d) -> rose_model(D / d, rose_params), gridData[:,:D], gridData[:,:d])
 @df gridData surface(:D, :d, :Ex, camera = (60, 70),
                      xlabel = "D",
                      ylabel = "d",
@@ -511,24 +511,24 @@ scatter3d!([combine[4, :D]], [combine[4, :d]], [combine[4, :Ex]],
           label = combine[4, :MetalName])
 
 
-@gif for i in range(0, stop = 4 * pi, length = 50)
-    # induce a slight oscillating camera angle sweep,
-    # in degrees (azimuth, altitude)
-    println(i * 100 / (4 * pi))
-    @df gridData surface(:D, :d, Ex, camera = (40 + 40 * cos(i), 40 + 40 * sin(i)),
-                         xlabel = "D",
-                         ylabel = "d",
-                         zlabel = "Ex",
-                         title = "Exchange as Function of D, d",
-                         fc = :haline,
-                         linealpha = 0.8,
-                         grid = false)
-   scatter3d!([combine[1, :D]], [combine[1, :d]], [combine[1, :Ex]],
-             label = combine[1, :MetalName])
-   scatter3d!([combine[2, :D]], [combine[2, :d]], [combine[2, :Ex]],
-             label = combine[2, :MetalName])
-   scatter3d!([combine[3, :D]], [combine[3, :d]], [combine[3, :Ex]],
-             label = combine[3, :MetalName])
-   scatter3d!([combine[4, :D]], [combine[4, :d]], [combine[4, :Ex]],
-             label = combine[4, :MetalName])
-end
+# @gif for i in range(0, stop = 4 * pi, length = 50)
+#     # induce a slight oscillating camera angle sweep,
+#     # in degrees (azimuth, altitude)
+#     println(i * 100 / (4 * pi))
+#     @df gridData surface(:D, :d, Ex, camera = (40 + 40 * cos(i), 40 + 40 * sin(i)),
+#                          xlabel = "D",
+#                          ylabel = "d",
+#                          zlabel = "Ex",
+#                          title = "Exchange as Function of D, d",
+#                          fc = :haline,
+#                          linealpha = 0.8,
+#                          grid = false)
+#    scatter3d!([combine[1, :D]], [combine[1, :d]], [combine[1, :Ex]],
+#              label = combine[1, :MetalName])
+#    scatter3d!([combine[2, :D]], [combine[2, :d]], [combine[2, :Ex]],
+#              label = combine[2, :MetalName])
+#    scatter3d!([combine[3, :D]], [combine[3, :d]], [combine[3, :Ex]],
+#              label = combine[3, :MetalName])
+#    scatter3d!([combine[4, :D]], [combine[4, :d]], [combine[4, :Ex]],
+#              label = combine[4, :MetalName])
+# end

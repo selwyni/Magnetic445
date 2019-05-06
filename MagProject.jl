@@ -1,5 +1,5 @@
 using DataFrames, DataFramesMeta, Lazy, Gadfly, CSV, Optim
-using Statistics, KernelEstimator, StatsPlots
+using Statistics, KernelEstimator
 
 
 ###############
@@ -486,9 +486,10 @@ combine = Chen[1:4, :]
 combine[:, :Ex] = BS[:, :Ex]
 combine[:, :MetalName] = ["Mn", "Fe", "Co", "Ni"]
 
+using StatsPlots
 
 gridData = DataFrame(D = Float64[], d = Float64[], Dd = Float64[],  Ex = Float64[])
-for i in range(2, 2.6, length = 50), j in range(1, 2, length = 50)
+for i in range(2, 3, length = 100), j in range(1, 2, length = 100)
   push!(gridData,  [i, j, i/j, rose_model(i / j, rose_params)])
 end
 
@@ -532,3 +533,13 @@ scatter3d!([combine[4, :D]], [combine[4, :d]], [combine[4, :Ex]],
 #    scatter3d!([combine[4, :D]], [combine[4, :d]], [combine[4, :Ex]],
 #              label = combine[4, :MetalName])
 # end
+
+digplot = plot(layer(x = BS[:, :Dd], y = BS[:, :Ex], Geom.point, Theme(default_color = "orange")),
+    layer(x = Chen[1:4, :Dd], y = BS[:, :Ex], Geom.point, Theme(default_color = "blue")),
+    layer(x = Dig[:, :Dd], y = Dig[:, :Ex], Geom.point, Theme(default_color = "red")),
+    Guide.title("Digitized Data"),
+    Guide.manual_color_key("Model",
+                           ["Digitized Data", "Labeled Points", "Chen Data"],
+                           ["red", "orange", "blue"]),
+    Guide.xlabel("D/d"),
+    Guide.ylabel("Exchange"))
